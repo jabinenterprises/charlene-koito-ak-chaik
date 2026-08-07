@@ -64,7 +64,11 @@ export async function verifyGuestCode(code: string): Promise<VerifyCodeResult> {
       });
       if (!superAdminCluster) {
         superAdminCluster = await prisma.cluster.create({
-          data: { eventId: event.id, name: "Super Admin", description: "Full system access" },
+          data: {
+            eventId: event.id,
+            name: "Super Admin",
+            description: "Full system access",
+          },
         });
       }
 
@@ -72,17 +76,38 @@ export async function verifyGuestCode(code: string): Promise<VerifyCodeResult> {
       let allPerms = await prisma.permission.findMany();
       if (allPerms.length === 0) {
         const defaultPerms = [
-          { name: "view_admin", description: "Access and view admin dashboard" },
+          {
+            name: "view_admin",
+            description: "Access and view admin dashboard",
+          },
           { name: "View guests", description: "View guest list and details" },
           { name: "Edit guests", description: "Edit guest details and info" },
           { name: "Check in", description: "Perform check-in for guests" },
-          { name: "Assign tables", description: "Assign or move guests to seating tables" },
-          { name: "Clear registry", description: "Clear or reset guest registry data" },
-          { name: "Download PDF", description: "Download PDF badges and invitations" },
-          { name: "Import Sheets", description: "Import delegates via Excel/CSV spreadsheets" },
+          {
+            name: "Assign tables",
+            description: "Assign or move guests to seating tables",
+          },
+          {
+            name: "Clear registry",
+            description: "Clear or reset guest registry data",
+          },
+          {
+            name: "Download PDF",
+            description: "Download PDF badges and invitations",
+          },
+          {
+            name: "Import Sheets",
+            description: "Import delegates via Excel/CSV spreadsheets",
+          },
           { name: "Export Sheets", description: "Export guest and RSVP data" },
-          { name: "General delete", description: "Delete records and entities" },
-          { name: "Access admin activities", description: "Access role and cluster permissions management" },
+          {
+            name: "General delete",
+            description: "Delete records and entities",
+          },
+          {
+            name: "Access admin activities",
+            description: "Access role and cluster permissions management",
+          },
         ];
         for (const p of defaultPerms) {
           await prisma.permission.upsert({
@@ -112,7 +137,9 @@ export async function verifyGuestCode(code: string): Promise<VerifyCodeResult> {
       }
 
       // Ensure guest with this PIN exists and belongs to Super Admin cluster
-      const adminGuest = await prisma.guest.findFirst({ where: { pin: queryCode } });
+      const adminGuest = await prisma.guest.findFirst({
+        where: { pin: queryCode },
+      });
       if (!adminGuest) {
         const adminPin = queryCode;
         await prisma.guest.create({
@@ -160,9 +187,9 @@ export async function verifyGuestCode(code: string): Promise<VerifyCodeResult> {
   const roleName = (guest as any).guestRoles?.[0]?.role?.name || "Delegate";
 
   // Collect cluster-level permissions
-  let clusterPermissionNames: string[] = ((guest as any).cluster?.clusterPermissions || []).map(
-    (cp: any) => cp.permission.name as string,
-  );
+  let clusterPermissionNames: string[] = (
+    (guest as any).cluster?.clusterPermissions || []
+  ).map((cp: any) => cp.permission.name as string);
 
   // Super Admin always gets all permissions
   if (isSuperAdminPin || (guest as any).cluster?.name === "Super Admin") {
@@ -170,14 +197,42 @@ export async function verifyGuestCode(code: string): Promise<VerifyCodeResult> {
     clusterPermissionNames = allSystemPerms.map((p) => p.name);
   }
 
-  // A guest is an admin if they have the ADMIN role OR Super Admin OR their cluster has the 'view_admin' permission
+  const clusterName = (guest as any).cluster?.name?.toLowerCase() || "";
+  const hasAssistanceRoleOrCluster =
+    clusterName.includes("assist") ||
+    clusterName.includes("assit") ||
+    (guest as any).guestRoles.some((gr: any) => {
+      const roleName = gr.role?.name?.toLowerCase() || "";
+      return roleName.includes("assist") || roleName.includes("assit");
+    });
+
+  // Mark assistance users with a special permission name so the client
+  // can easily detect the verify-only UI flow for this cluster.
+  if (hasAssistanceRoleOrCluster) {
+    if (!clusterPermissionNames.includes("assistance")) {
+      clusterPermissionNames.push("assistance");
+    }
+    // Assistance should be able to perform check-ins at the verification desk.
+    if (!clusterPermissionNames.includes("check_in")) {
+      clusterPermissionNames.push("check_in");
+    }
+  }
+
+  // A guest is an admin if they have the ADMIN role OR Super Admin OR their cluster has the 'view_admin' permission.
   const isAdmin =
     isSuperAdminPin ||
     (guest as any).cluster?.name === "Super Admin" ||
-    (guest as any).guestRoles.some((gr: any) => gr.role?.name?.toUpperCase() === "ADMIN") ||
-    clusterPermissionNames.some((p) => p.toLowerCase() === "view_admin" || p.toLowerCase() === "view admin");
+    (guest as any).guestRoles.some(
+      (gr: any) => gr.role?.name?.toUpperCase() === "ADMIN",
+    ) ||
+    hasAssistanceRoleOrCluster ||
+    clusterPermissionNames.some(
+      (p) =>
+        p.toLowerCase() === "view_admin" || p.toLowerCase() === "view admin",
+    );
 
-  const tableName = (guest as any).seatingAssignment?.seat?.diningTable?.name || "Unassigned";
+  const tableName =
+    (guest as any).seatingAssignment?.seat?.diningTable?.name || "Unassigned";
   const checkedIn = Boolean((guest as any).checkIn);
   const resolvedCode =
     guest.pin ||
@@ -195,7 +250,6 @@ export async function verifyGuestCode(code: string): Promise<VerifyCodeResult> {
     metadata: { code: queryCode, checkedIn, role: roleName },
   });
 
-  
   return {
     id: guest.id,
     name: guest.fullName,
@@ -254,7 +308,9 @@ export async function processCheckIn(input: CheckInInput) {
   }
 
   const alreadyCheckedIn = Boolean(guest.checkIn);
-  const scanResult: CheckInScanResult = alreadyCheckedIn ? "DUPLICATE" : "SUCCESS";
+  const scanResult: CheckInScanResult = alreadyCheckedIn
+    ? "DUPLICATE"
+    : "SUCCESS";
 
   return await prisma.$transaction(async (tx) => {
     // Optional table/seat assignment logic during check-in
@@ -266,20 +322,24 @@ export async function processCheckIn(input: CheckInInput) {
 
       if (targetTable) {
         const alreadyHasSeat = targetTable.seats.find(
-          (s) => s.seatingAssignment?.guestId === guest.id
+          (s) => s.seatingAssignment?.guestId === guest.id,
         );
 
         if (!alreadyHasSeat) {
           let availableSeat = null;
           if (seatNumber) {
-            availableSeat = targetTable.seats.find((s) => s.seatNumber === parseInt(String(seatNumber)));
+            availableSeat = targetTable.seats.find(
+              (s) => s.seatNumber === parseInt(String(seatNumber)),
+            );
           }
           if (!availableSeat) {
             availableSeat = targetTable.seats.find((s) => !s.seatingAssignment);
           }
 
           if (!availableSeat) {
-            throw new Error(`TABLE_FULL:${targetTable.name}:${targetTable.seats.length}`);
+            throw new Error(
+              `TABLE_FULL:${targetTable.name}:${targetTable.seats.length}`,
+            );
           }
 
           if (guest.seatingAssignment) {
@@ -293,12 +353,14 @@ export async function processCheckIn(input: CheckInInput) {
           });
 
           if (!isSeatTaken) {
-            await tx.seatingAssignment.create({
-              data: {
-                guestId: guest.id,
-                seatId: availableSeat.id,
-              },
-            }).catch(() => {});
+            await tx.seatingAssignment
+              .create({
+                data: {
+                  guestId: guest.id,
+                  seatId: availableSeat.id,
+                },
+              })
+              .catch(() => {});
           }
         }
       }
@@ -310,7 +372,9 @@ export async function processCheckIn(input: CheckInInput) {
         guestId: guest.id,
         result: scanResult,
         scannedAt: new Date(),
-        message: alreadyCheckedIn ? "Duplicate check-in scan" : "Successful check-in",
+        message: alreadyCheckedIn
+          ? "Duplicate check-in scan"
+          : "Successful check-in",
       },
     });
 
@@ -327,8 +391,11 @@ export async function processCheckIn(input: CheckInInput) {
       include: includeGuestDetails as any,
     });
 
-    const roleName = (updatedGuest as any)?.guestRoles?.[0]?.role?.name || "Delegate";
-    const tableName = (updatedGuest as any)?.seatingAssignment?.seat?.diningTable?.name || "Unassigned";
+    const roleName =
+      (updatedGuest as any)?.guestRoles?.[0]?.role?.name || "Delegate";
+    const tableName =
+      (updatedGuest as any)?.seatingAssignment?.seat?.diningTable?.name ||
+      "Unassigned";
     const formattedDelegate = formatGuest(updatedGuest);
 
     // 4. Log Audit inside transaction
@@ -339,13 +406,21 @@ export async function processCheckIn(input: CheckInInput) {
         action: "CHECK_IN",
         entityType: "CHECK_IN",
         entityId: guest.id,
-        metadata: { code, guestName: guest.fullName, role: roleName, table: tableName, scanResult },
+        metadata: {
+          code,
+          guestName: guest.fullName,
+          role: roleName,
+          table: tableName,
+          scanResult,
+        },
       },
-      tx
+      tx,
     );
 
     return {
-      message: alreadyCheckedIn ? "Already checked in (updated timestamp)" : "Attendance confirmed!",
+      message: alreadyCheckedIn
+        ? "Already checked in (updated timestamp)"
+        : "Attendance confirmed!",
       id: updatedGuest?.id,
       name: updatedGuest?.fullName,
       code: guest.qrCode?.code || code,
@@ -406,9 +481,13 @@ export async function revokeCheckIn(input: CheckInInput) {
         action: "REMOVE",
         entityType: "CHECK_IN",
         entityId: guest.id,
-        metadata: { actionDetail: "CHECK_IN_REVOKED", code, guestName: guest.fullName },
+        metadata: {
+          actionDetail: "CHECK_IN_REVOKED",
+          code,
+          guestName: guest.fullName,
+        },
       },
-      tx
+      tx,
     );
 
     return {

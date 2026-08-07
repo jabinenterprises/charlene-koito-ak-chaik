@@ -4959,6 +4959,8 @@ function AdminDashboard({
     return adminPermissions.some((p) => normalize(p) === target);
   };
 
+  const isAssistance = adminPermissions.includes("assistance");
+
   const [guests, setGuests] = useState<StoredGuest[]>([]);
   const [dbGuests, setDbGuests] = useState<any[]>([]);
   const displayGuests = useMemo(() => {
@@ -6583,37 +6585,49 @@ function AdminDashboard({
 
       {/* Stats - Compact for phone screens */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-px bg-sidebar-border border-b border-sidebar-border">
-        {[
-          {
-            label: "Total Guests",
-            value: dbGuests.length > 0 ? dbStats.total : guests.length,
-          },
-          {
-            label: "Checked In",
-            value: dbGuests.length > 0 ? dbStats.checkedIn : 0,
-          },
-          {
-            label: "Pending Checkin",
-            value:
-              dbGuests.length > 0
-                ? dbStats.invited
-                : guests.filter((g) => !g.revoked).length,
-          },
-          {
-            label: "RSVPs Received",
-            value: attendingRsvps.length + notAttendingRsvps.length,
-          },
-          { label: "Total Tables", value: tableStats.totalTables },
-          {
-            label: "Table Status",
-            value: `${tableStats.fullySeated} Full / ${tableStats.withVacancy} Open`,
-          },
-          { label: "Total Seats", value: tableStats.totalSeats },
-          {
-            label: "Vacant Seats",
-            value: `${tableStats.vacantSeats} Available`,
-          },
-        ].map(({ label, value }) => (
+        {(isAssistance
+          ? [
+              {
+                label: "Total Guests",
+                value: dbGuests.length > 0 ? dbStats.total : guests.length,
+              },
+              {
+                label: "Checked In",
+                value: dbGuests.length > 0 ? dbStats.checkedIn : 0,
+              },
+            ]
+          : [
+              {
+                label: "Total Guests",
+                value: dbGuests.length > 0 ? dbStats.total : guests.length,
+              },
+              {
+                label: "Checked In",
+                value: dbGuests.length > 0 ? dbStats.checkedIn : 0,
+              },
+              {
+                label: "Pending Checkin",
+                value:
+                  dbGuests.length > 0
+                    ? dbStats.invited
+                    : guests.filter((g) => !g.revoked).length,
+              },
+              {
+                label: "RSVPs Received",
+                value: attendingRsvps.length + notAttendingRsvps.length,
+              },
+              { label: "Total Tables", value: tableStats.totalTables },
+              {
+                label: "Table Status",
+                value: `${tableStats.fullySeated} Full / ${tableStats.withVacancy} Open`,
+              },
+              { label: "Total Seats", value: tableStats.totalSeats },
+              {
+                label: "Vacant Seats",
+                value: `${tableStats.vacantSeats} Available`,
+              },
+            ]
+        ).map(({ label, value }) => (
           <div key={label} className="bg-primary px-3 py-3 md:px-5 md:py-4">
             <p
               className="text-[8px] tracking-[0.2em] text-accent uppercase mb-1"
@@ -6641,6 +6655,7 @@ function AdminDashboard({
           ] as const
         )
           .filter(([t, , perm]) => {
+            if (isAssistance) return t === "verify";
             if (!perm) return true; // no permission guard
             if (t === "activities") {
               return (
@@ -6801,13 +6816,15 @@ function AdminDashboard({
                         disabled={
                           verifyLoading ||
                           (adminPermissions.length > 0 &&
-                            !hasPermission("check_in"))
+                            !hasPermission("check_in") &&
+                            !adminPermissions.includes("assistance"))
                         }
-                        className={`px-4 py-1.5 bg-accent text-accent-foreground text-[10px] font-bold uppercase tracking-widest hover:bg-accent/80 transition-colors border border-accent flex items-center gap-1 flex-shrink-0 ${adminPermissions.length > 0 && !hasPermission("check_in") ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
+                        className={`px-4 py-1.5 bg-accent text-accent-foreground text-[10px] font-bold uppercase tracking-widest hover:bg-accent/80 transition-colors border border-accent flex items-center gap-1 flex-shrink-0 ${adminPermissions.length > 0 && !hasPermission("check_in") && !adminPermissions.includes("assistance") ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
                         style={{ fontFamily: "Lato,sans-serif" }}
                         title={
                           adminPermissions.length > 0 &&
-                          !hasPermission("check_in")
+                          !hasPermission("check_in") &&
+                          !adminPermissions.includes("assistance")
                             ? "Check-in permission required"
                             : undefined
                         }
@@ -6875,15 +6892,16 @@ function AdminDashboard({
 
               <div className="flex gap-3 items-center flex-wrap">
                 {(adminPermissions.length === 0 ||
-                  hasPermission("export_sheets")) && (
-                  <button
-                    onClick={handleExportGuestsToExcel}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-emerald-800/90 hover:bg-emerald-700 text-white text-[10px] tracking-wider uppercase border border-emerald-500/50 transition-colors cursor-pointer font-bold shadow-sm"
-                    style={{ fontFamily: "Lato,sans-serif" }}
-                  >
-                    <FileSpreadsheet size={13} /> Export Guests (Excel)
-                  </button>
-                )}
+                  hasPermission("export_sheets")) &&
+                  !isAssistance && (
+                    <button
+                      onClick={handleExportGuestsToExcel}
+                      className="flex items-center gap-2 px-5 py-2.5 bg-emerald-800/90 hover:bg-emerald-700 text-white text-[10px] tracking-wider uppercase border border-emerald-500/50 transition-colors cursor-pointer font-bold shadow-sm"
+                      style={{ fontFamily: "Lato,sans-serif" }}
+                    >
+                      <FileSpreadsheet size={13} /> Export Guests (Excel)
+                    </button>
+                  )}
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -6892,21 +6910,22 @@ function AdminDashboard({
                   className="hidden"
                 />
                 {(adminPermissions.length === 0 ||
-                  hasPermission("import_sheets")) && (
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={importing}
-                    className="flex items-center gap-2 px-5 py-2.5 border border-sidebar-border text-accent text-[10px] tracking-wider uppercase hover:bg-accent/10 transition-colors cursor-pointer font-medium disabled:opacity-50"
-                    style={{ fontFamily: "Lato,sans-serif" }}
-                  >
-                    <Download size={12} className="rotate-180" />{" "}
-                    {importing
-                      ? "Uploading Sheet..."
-                      : "Import Guest Sheet (CSV / Excel)"}
-                  </button>
-                )}
+                  hasPermission("import_sheets")) &&
+                  !isAssistance && (
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={importing}
+                      className="flex items-center gap-2 px-5 py-2.5 border border-sidebar-border text-accent text-[10px] tracking-wider uppercase hover:bg-accent/10 transition-colors cursor-pointer font-medium disabled:opacity-50"
+                      style={{ fontFamily: "Lato,sans-serif" }}
+                    >
+                      <Download size={12} className="rotate-180" />{" "}
+                      {importing
+                        ? "Uploading Sheet..."
+                        : "Import Guest Sheet (CSV / Excel)"}
+                    </button>
+                  )}
                 {/* 
-                {(adminPermissions.length === 0 || hasPermission("clear_registry")) && (
+                {(adminPermissions.length === 0 || hasPermission("clear_registry")) && !isAssistance && (
                   <button
                     onClick={handleClearRegistry}
                     className="flex items-center gap-2 px-4 py-2.5 border border-rose-500/40 text-rose-400 text-[10px] tracking-wider uppercase hover:bg-rose-500/10 transition-colors cursor-pointer font-medium"
@@ -6919,57 +6938,60 @@ function AdminDashboard({
                 */}
 
                 {(adminPermissions.length === 0 ||
-                  hasPermission("edit_guests")) && (
-                  <button
-                    onClick={() => {
-                      const defaultTitleObj = titles.find(
-                        (t: any) =>
-                          t.name?.toLowerCase() === "mr." ||
-                          t.name?.toLowerCase() === "mr",
-                      );
-                      const defaultClusterObj = clusters.find(
-                        (c: any) =>
-                          c.name?.toLowerCase() === "guest" ||
-                          c.name?.toLowerCase() === "guests",
-                      );
-                      setCreateGuestForm({
-                        titleId: defaultTitleObj ? defaultTitleObj.id : "",
-                        title: defaultTitleObj ? defaultTitleObj.name : "Mr.",
-                        name: "",
-                        clusterId: defaultClusterObj
-                          ? defaultClusterObj.id
-                          : clusters[0]?.id || "",
-                        cluster: defaultClusterObj
-                          ? defaultClusterObj.name
-                          : "Guests",
-                        phone: "",
-                      });
-                      setShowCreateGuestModal(true);
-                    }}
-                    className="flex items-center gap-2 px-4 py-2.5 bg-accent text-accent-foreground text-[10px] tracking-wider uppercase hover:bg-accent/80 transition-colors cursor-pointer font-bold"
-                    style={{ fontFamily: "Lato,sans-serif" }}
-                    title="Create a new guest record"
-                  >
-                    <UserPlus size={12} /> Create Guest
-                  </button>
-                )}
+                  hasPermission("edit_guests")) &&
+                  !isAssistance && (
+                    <button
+                      onClick={() => {
+                        const defaultTitleObj = titles.find(
+                          (t: any) =>
+                            t.name?.toLowerCase() === "mr." ||
+                            t.name?.toLowerCase() === "mr",
+                        );
+                        const defaultClusterObj = clusters.find(
+                          (c: any) =>
+                            c.name?.toLowerCase() === "guest" ||
+                            c.name?.toLowerCase() === "guests",
+                        );
+                        setCreateGuestForm({
+                          titleId: defaultTitleObj ? defaultTitleObj.id : "",
+                          title: defaultTitleObj ? defaultTitleObj.name : "Mr.",
+                          name: "",
+                          clusterId: defaultClusterObj
+                            ? defaultClusterObj.id
+                            : clusters[0]?.id || "",
+                          cluster: defaultClusterObj
+                            ? defaultClusterObj.name
+                            : "Guests",
+                          phone: "",
+                        });
+                        setShowCreateGuestModal(true);
+                      }}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-accent text-accent-foreground text-[10px] tracking-wider uppercase hover:bg-accent/80 transition-colors cursor-pointer font-bold"
+                      style={{ fontFamily: "Lato,sans-serif" }}
+                      title="Create a new guest record"
+                    >
+                      <UserPlus size={12} /> Create Guest
+                    </button>
+                  )}
                 {(adminPermissions.length === 0 ||
-                  hasPermission("download_pdf")) && (
-                  <button
-                    onClick={() =>
-                      window.open("/api/delegates/pdf/zip", "_blank")
-                    }
-                    className="flex items-center gap-2 px-5 py-2.5 border border-sidebar-border text-accent text-[10px] tracking-wider uppercase hover:bg-accent/10 transition-colors cursor-pointer"
-                    style={{ fontFamily: "Lato,sans-serif" }}
-                  >
-                    <Download size={12} /> Download PDF Badges (ZIP)
-                  </button>
-                )}
+                  hasPermission("download_pdf")) &&
+                  !isAssistance && (
+                    <button
+                      onClick={() =>
+                        window.open("/api/delegates/pdf/zip", "_blank")
+                      }
+                      className="flex items-center gap-2 px-5 py-2.5 border border-sidebar-border text-accent text-[10px] tracking-wider uppercase hover:bg-accent/10 transition-colors cursor-pointer"
+                      style={{ fontFamily: "Lato,sans-serif" }}
+                    >
+                      <Download size={12} /> Download PDF Badges (ZIP)
+                    </button>
+                  )}
               </div>
             </div>
 
             <AnimatePresence>
               {showAdd &&
+                !isAssistance &&
                 (adminPermissions.length === 0 ||
                   hasPermission("edit_guests")) && (
                   <motion.div
@@ -7229,22 +7251,23 @@ function AdminDashboard({
                             : "Revoke"}
                       </button>
                       {(adminPermissions.length === 0 ||
-                        hasPermission("general_delete")) && (
-                        <button
-                          onClick={() =>
-                            setGuests(
-                              guests.filter(
-                                (x) =>
-                                  guestKey(x.pin, x.name) !==
-                                  guestKey(g.pin, g.name),
-                              ),
-                            )
-                          }
-                          className="text-primary-foreground/25 hover:text-red-400 transition-colors cursor-pointer"
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      )}
+                        hasPermission("general_delete")) &&
+                        !isAssistance && (
+                          <button
+                            onClick={() =>
+                              setGuests(
+                                guests.filter(
+                                  (x) =>
+                                    guestKey(x.pin, x.name) !==
+                                    guestKey(g.pin, g.name),
+                                ),
+                              )
+                            }
+                            className="text-primary-foreground/25 hover:text-red-400 transition-colors cursor-pointer"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
                     </div>
                   </div>
                 );
@@ -8295,46 +8318,48 @@ function AdminDashboard({
 
               <div className="flex items-center gap-2 flex-wrap">
                 {(adminPermissions.length === 0 ||
-                  hasPermission("export_sheets")) && (
-                  <button
-                    onClick={
-                      rsvpStatusTab === "PENDING"
-                        ? exportPendingRsvpExcel
-                        : exportCSV
-                    }
-                    className="flex items-center gap-2 px-5 py-2.5 border border-amber-500/60 bg-amber-950/30 text-amber-300 hover:bg-amber-900/40 transition-colors tracking-wider uppercase cursor-pointer font-bold text-[10px]"
-                    style={{ fontFamily: "Lato,sans-serif" }}
-                  >
-                    <FileSpreadsheet size={12} />
-                    {rsvpStatusTab === "PENDING"
-                      ? "Export Pending RSVP Excel"
-                      : "Export CSV"}
-                  </button>
-                )}
-
-                {(adminPermissions.length === 0 ||
-                  hasPermission("export_sheets")) && (
-                  <>
-                    <input
-                      ref={pendingRsvpUploadRef}
-                      type="file"
-                      accept=".xlsx,.xls,.csv"
-                      className="hidden"
-                      onChange={handlePendingRsvpUpload}
-                    />
+                  hasPermission("export_sheets")) &&
+                  !isAssistance && (
                     <button
-                      onClick={() => pendingRsvpUploadRef.current?.click()}
-                      disabled={reconcilingPendingRsvp}
-                      className="flex items-center gap-2 px-5 py-2.5 border border-emerald-500/60 bg-emerald-950/30 text-emerald-300 hover:bg-emerald-900/40 transition-colors tracking-wider uppercase cursor-pointer font-bold text-[10px] disabled:opacity-60"
+                      onClick={
+                        rsvpStatusTab === "PENDING"
+                          ? exportPendingRsvpExcel
+                          : exportCSV
+                      }
+                      className="flex items-center gap-2 px-5 py-2.5 border border-amber-500/60 bg-amber-950/30 text-amber-300 hover:bg-amber-900/40 transition-colors tracking-wider uppercase cursor-pointer font-bold text-[10px]"
                       style={{ fontFamily: "Lato,sans-serif" }}
                     >
-                      <Upload size={12} />
-                      {reconcilingPendingRsvp
-                        ? "Reconciling…"
-                        : "Upload Phone List"}
+                      <FileSpreadsheet size={12} />
+                      {rsvpStatusTab === "PENDING"
+                        ? "Export Pending RSVP Excel"
+                        : "Export CSV"}
                     </button>
-                  </>
-                )}
+                  )}
+
+                {(adminPermissions.length === 0 ||
+                  hasPermission("export_sheets")) &&
+                  !isAssistance && (
+                    <>
+                      <input
+                        ref={pendingRsvpUploadRef}
+                        type="file"
+                        accept=".xlsx,.xls,.csv"
+                        className="hidden"
+                        onChange={handlePendingRsvpUpload}
+                      />
+                      <button
+                        onClick={() => pendingRsvpUploadRef.current?.click()}
+                        disabled={reconcilingPendingRsvp}
+                        className="flex items-center gap-2 px-5 py-2.5 border border-emerald-500/60 bg-emerald-950/30 text-emerald-300 hover:bg-emerald-900/40 transition-colors tracking-wider uppercase cursor-pointer font-bold text-[10px] disabled:opacity-60"
+                        style={{ fontFamily: "Lato,sans-serif" }}
+                      >
+                        <Upload size={12} />
+                        {reconcilingPendingRsvp
+                          ? "Reconciling…"
+                          : "Upload Phone List"}
+                      </button>
+                    </>
+                  )}
               </div>
             </div>
 
