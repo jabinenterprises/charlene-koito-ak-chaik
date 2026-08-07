@@ -1,0 +1,18 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: invitation-platform-app
+    container_name: invitation-platform-app-external
+    restart: unless-stopped
+    ports:
+      - "7100:6060"
+    env_file:
+      - .env
+    environment:
+      PORT: 6060
+      DATABASE_URL: ${DATABASE_URL}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+

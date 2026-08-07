@@ -1,0 +1,101 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=Great+Vibes&family=Lato:ital,wght@0,300;0,400;0,700;0,900;1,400&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+@import "tailwindcss";
+
+:root {
+  --font-size: 16px;
+  --background: #F5F0E8;
+  --foreground: #1C1208;
+  --card: #EDE8DC;
+  --card-foreground: #1C1208;
+  --popover: #EDE8DC;
+  --popover-foreground: #1C1208;
+  --primary: #1A3D28;
+  --primary-foreground: #F5F0E8;
+  --secondary: #2B5A3C;
+  --secondary-foreground: #F5F0E8;
+  --muted: #D4CCBA;
+  --muted-foreground: #6B5E45;
+  --accent: #C9A84C;
+  --accent-foreground: #1C1208;
+  --destructive: #8B2020;
+  --destructive-foreground: #F5F0E8;
+  --border: rgba(201, 168, 76, 0.3);
+  --input: transparent;
+  --input-background: #EDE8DC;
+  --switch-background: #C9A84C;
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --ring: #C9A84C;
+  --chart-1: #C9A84C;
+  --chart-2: #1A3D28;
+  --chart-3: #2B5A3C;
+  --chart-4: #8B6914;
+  --chart-5: #4A7C59;
+  --radius: 0rem;
+  --sidebar: #1A3D28;
+  --sidebar-foreground: #F5F0E8;
+  --sidebar-primary: #C9A84C;
+  --sidebar-primary-foreground: #1C1208;
+  --sidebar-accent: #2B5A3C;
+  --sidebar-accent-foreground: #F5F0E8;
+  --sidebar-border: rgba(201, 168, 76, 0.2);
+  --sidebar-ring: #C9A84C;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-input-background: var(--input-background);
+  --color-switch-background: var(--switch-background);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Lato', sans-serif;
+}
+
+/* Hide Next.js dev indicator badge */
+nextjs-portal,
+[data-nextjs-toast],
+[data-nextjs-dialog-overlay],
+[data-nextjs-dev-overlay],
+[data-next-badge],
+#next-logo-badge,
+next-route-announcer {
+  display: none !important;
+}

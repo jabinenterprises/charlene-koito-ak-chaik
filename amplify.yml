@@ -1,0 +1,27 @@
+version: 1
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - echo "NODE_ENV=production" > .env.production
+        - echo "PORT=3000" >> .env.production
+        - if [ -n "$DATABASE_URL" ]; then echo "DATABASE_URL=$DATABASE_URL" >> .env.production; fi
+        - if [ -n "$ADMIN_AUTH_SECRET" ]; then echo "ADMIN_AUTH_SECRET=$ADMIN_AUTH_SECRET" >> .env.production; fi
+        - cp .env.production .env
+        - cp .env.production .env.local
+        - rm -rf .next public/imports/*.mp4 public/imports/*.jpg public/imports/*.jpeg
+        - npm ci
+        - npx prisma generate
+    build:
+      commands:
+        - npm run build
+    postBuild:
+      commands:
+        - rm -rf node_modules/.cache node_modules/@next/swc* node_modules/typescript node_modules/@esbuild .next/cache .next/build .next/diagnostics .next/turbopack .next/trace*
+  artifacts:
+    baseDirectory: .next
+    files:
+      - "**/*"
+  cache:
+    paths:
+      - node_modules/**

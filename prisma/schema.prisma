@@ -1,0 +1,620 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// -----------------------------------------------------------------------------
+// ENUMS
+// -----------------------------------------------------------------------------
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+enum RSVPStatus {
+  ATTENDING
+  NOT_ATTENDING
+  PENDING
+}
+
+enum CheckInScanResult {
+  SUCCESS
+  DUPLICATE
+  INVALID
+  REJECTED
+}
+
+enum ActorType {
+  GUEST
+  ADMIN
+  SYSTEM
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  ASSIGN
+  REMOVE
+  CHECK_IN
+  GENERATE
+  REGENERATE
+  LOGIN
+  LOGIN_FAILED
+  LOGOUT
+  VERIFY
+  VERIFY_FAILED
+  RSVP_SUBMIT
+  EXPORT
+  IMPORT
+}
+
+enum AuditEntityType {
+  EVENT
+  EVENT_CONFIGURATION
+  TITLE
+  CLUSTER
+  ROLE
+  PERMISSION
+  GUEST
+  GUEST_ROLE
+  RSVP
+  DINING_TABLE
+  SEAT
+  SEATING_ASSIGNMENT
+  QR_CODE
+  BADGE
+  CHECK_IN
+  AUTH
+  SYSTEM
+}
+
+// -----------------------------------------------------------------------------
+// EVENT
+// -----------------------------------------------------------------------------
+
+model Event {
+  id          String      @id @default(cuid())
+  name        String      @db.VarChar(255)
+  description String?     @db.Text
+  venue       String?     @db.VarChar(255)
+  startsAt    DateTime
+  endsAt      DateTime
+  status      EventStatus @default(DRAFT)
+
+  configuration          EventConfiguration?
+  clusters               Cluster[]
+  guests                 Guest[]
+  authenticationAttempts AuthenticationAttempt[]
+  guestRoles             GuestRole[]
+  diningTables           DiningTable[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([startsAt])
+  @@index([endsAt])
+  @@map("events")
+}
+
+// -----------------------------------------------------------------------------
+// EVENT CONFIGURATION
+// -----------------------------------------------------------------------------
+
+model EventConfiguration {
+  id String @id @default(cuid())
+
+  eventId String @unique
+
+  rsvpDeadline DateTime?
+
+  pinActivationStartsAt DateTime?
+  pinActivationEndsAt   DateTime?
+
+  qrActivationStartsAt DateTime?
+  qrActivationEndsAt   DateTime?
+
+  checkInEnabled       Boolean @default(true)
+  badgePrintingEnabled Boolean @default(true)
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("event_configurations")
+}
+
+// -----------------------------------------------------------------------------
+// TITLE
+// -----------------------------------------------------------------------------
+
+model Title {
+  id   String @id @default(cuid())
+  name String @db.VarChar(100)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  guests    Guest[]
+
+  @@unique([name])
+  @@map("titles")
+}
+
+// -----------------------------------------------------------------------------
+// CLUSTER
+// -----------------------------------------------------------------------------
+
+model Cluster {
+  id String @id @default(cuid())
+
+  eventId String
+
+  name        String  @db.VarChar(150)
+  description String? @db.Text
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  guests             Guest[]
+  clusterPermissions ClusterPermission[]
+
+  @@unique([eventId, name])
+  @@index([eventId])
+  @@map("clusters")
+}
+
+// -----------------------------------------------------------------------------
+// ROLE
+// -----------------------------------------------------------------------------
+
+model Role {
+  id          String  @id @default(cuid())
+  name        String  @db.VarChar(100)
+  description String? @db.Text
+
+  permissions RolePermission[]
+  guestRoles  GuestRole[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([name])
+  @@map("roles")
+}
+
+// -----------------------------------------------------------------------------
+// PERMISSION
+// -----------------------------------------------------------------------------
+
+model Permission {
+  id          String  @id @default(cuid())
+  name        String  @db.VarChar(150)
+  description String? @db.Text
+
+  roles              RolePermission[]
+  clusterPermissions ClusterPermission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([name])
+  @@map("permissions")
+}
+
+// -----------------------------------------------------------------------------
+// ROLE PERMISSION
+// -----------------------------------------------------------------------------
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+// -----------------------------------------------------------------------------
+// GUEST
+// -----------------------------------------------------------------------------
+
+model Guest {
+  id String @id @default(cuid())
+
+  eventId   String
+  titleId   String?
+  clusterId String?
+
+  fullName String @db.VarChar(255)
+
+  pin            String? @db.VarChar(50)
+  pinHash        String? @db.VarChar(255)
+  pinFingerprint String? @db.VarChar(64)
+
+  organization              String? @db.VarChar(255)
+  position                  String? @db.VarChar(255)
+  country                   String? @db.VarChar(150)
+  phone                     String? @db.VarChar(50)
+  email                     String? @db.VarChar(320)
+  dietaryRequirements       String? @db.Text
+  accessibilityRequirements String? @db.Text
+  emergencyContact          String? @db.Text
+  notes                     String? @db.Text
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  title Title? @relation(fields: [titleId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  cluster Cluster? @relation(fields: [clusterId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  authenticationAttempts AuthenticationAttempt[]
+  guestRoles             GuestRole[]
+  rsvp                   RSVP?
+  seatingAssignment      SeatingAssignment?
+  invitationDispatch     InvitationDispatch?
+
+  qrCode       QRCode?
+  badge        Badge?
+  checkIn      CheckIn?
+  checkInScans CheckInScan[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([eventId, pinFingerprint])
+  @@index([eventId])
+  @@index([titleId])
+  @@index([clusterId])
+  @@index([fullName])
+  @@index([pinFingerprint])
+  @@index([pin])
+  @@map("guests")
+}
+
+// -----------------------------------------------------------------------------
+// AUTHENTICATION ATTEMPT
+// -----------------------------------------------------------------------------
+
+model AuthenticationAttempt {
+  id String @id @default(cuid())
+
+  eventId String
+  guestId String?
+
+  pinFingerprint String @db.VarChar(64)
+
+  successful Boolean
+
+  attemptedAt DateTime @default(now())
+
+  ipAddress String? @db.VarChar(45)
+  userAgent String? @db.Text
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  guest Guest? @relation(fields: [guestId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([eventId])
+  @@index([guestId])
+  @@index([pinFingerprint])
+  @@index([successful])
+  @@index([attemptedAt])
+  @@index([eventId, attemptedAt])
+  @@map("authentication_attempts")
+}
+
+// -----------------------------------------------------------------------------
+// GUEST ROLE
+// -----------------------------------------------------------------------------
+
+model GuestRole {
+  id String @id @default(cuid())
+
+  guestId String
+  roleId  String
+  eventId String
+
+  guest Guest @relation(fields: [guestId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  role Role @relation(fields: [roleId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guestId, roleId, eventId])
+  @@index([guestId])
+  @@index([roleId])
+  @@index([eventId])
+  @@map("guest_roles")
+}
+
+// -----------------------------------------------------------------------------
+// RSVP
+// -----------------------------------------------------------------------------
+
+model RSVP {
+  id String @id @default(cuid())
+
+  guestId String
+
+  status RSVPStatus @default(PENDING)
+
+  respondedAt DateTime?
+
+  cardSentAt DateTime?
+
+  guestNotes String? @db.Text
+
+  adminNotes String? @db.Text
+
+  guest Guest @relation(fields: [guestId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guestId])
+  @@index([status])
+  @@index([respondedAt])
+  @@map("rsvps")
+}
+
+// -----------------------------------------------------------------------------
+// DINING TABLE
+// -----------------------------------------------------------------------------
+
+model DiningTable {
+  id String @id @default(cuid())
+
+  eventId String
+
+  name        String  @db.VarChar(100)
+  zone        String? @db.VarChar(100)
+  description String? @db.Text
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  seats Seat[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([eventId, name])
+  @@index([eventId])
+  @@map("dining_tables")
+}
+
+// -----------------------------------------------------------------------------
+// SEAT
+// -----------------------------------------------------------------------------
+
+model Seat {
+  id String @id @default(cuid())
+
+  diningTableId String
+
+  seatNumber Int
+
+  diningTable DiningTable @relation(fields: [diningTableId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  seatingAssignment SeatingAssignment?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([diningTableId, seatNumber])
+  @@index([diningTableId])
+  @@map("seats")
+}
+
+// -----------------------------------------------------------------------------
+// SEATING ASSIGNMENT
+// -----------------------------------------------------------------------------
+
+model SeatingAssignment {
+  id String @id @default(cuid())
+
+  guestId String
+  seatId  String
+
+  guest Guest @relation(fields: [guestId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  seat Seat @relation(fields: [seatId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guestId])
+  @@unique([seatId])
+  @@map("seating_assignments")
+}
+
+// -----------------------------------------------------------------------------
+// QR CODE
+// -----------------------------------------------------------------------------
+
+model QRCode {
+  id String @id @default(cuid())
+
+  guestId String
+
+  code String @db.VarChar(255)
+
+  generatedAt DateTime?
+
+  guest Guest @relation(fields: [guestId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guestId])
+  @@unique([code])
+  @@index([code])
+  @@map("qr_codes")
+}
+
+// -----------------------------------------------------------------------------
+// BADGE
+// -----------------------------------------------------------------------------
+
+model Badge {
+  id String @id @default(cuid())
+
+  guestId String
+
+  badgeNumber String @db.VarChar(100)
+
+  printedAt DateTime?
+
+  guest Guest @relation(fields: [guestId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guestId])
+  @@unique([badgeNumber])
+  @@index([badgeNumber])
+  @@map("badges")
+}
+
+// -----------------------------------------------------------------------------
+// CHECK IN
+// -----------------------------------------------------------------------------
+
+model CheckIn {
+  id String @id @default(cuid())
+
+  guestId String
+
+  checkedInAt DateTime
+
+  notes String? @db.Text
+
+  guest Guest @relation(fields: [guestId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([guestId])
+  @@index([checkedInAt])
+  @@map("check_ins")
+}
+
+// -----------------------------------------------------------------------------
+// CHECK IN SCAN
+// -----------------------------------------------------------------------------
+
+model CheckInScan {
+  id String @id @default(cuid())
+
+  guestId String
+
+  result CheckInScanResult
+
+  scannedAt DateTime
+
+  message String? @db.Text
+
+  guest Guest @relation(fields: [guestId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([guestId])
+  @@index([scannedAt])
+  @@index([result])
+  @@map("check_in_scans")
+}
+
+// -----------------------------------------------------------------------------
+// AUDIT LOG
+// -----------------------------------------------------------------------------
+
+model AuditLog {
+  id String @id @default(cuid())
+
+  actorType ActorType
+  actorId   String    @db.VarChar(255)
+
+  action AuditAction
+
+  entityType AuditEntityType
+  entityId   String          @db.VarChar(255)
+
+  metadata  Json?
+  ipAddress String? @db.VarChar(45)
+  userAgent String? @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([action])
+  @@index([entityType])
+  @@index([entityId])
+  @@index([actorType])
+  @@index([actorId])
+  @@index([entityType, entityId])
+  @@index([actorType, actorId])
+  @@map("audit_logs")
+}
+
+// -----------------------------------------------------------------------------
+// INVITATION DISPATCH
+// -----------------------------------------------------------------------------
+
+model InvitationDispatch {
+  id String @id @default(cuid())
+
+  guestId String @unique
+
+  sentAt DateTime @default(now())
+  sentBy String?  @db.VarChar(255)
+  method String?  @db.VarChar(100)
+  notes  String?  @db.Text
+
+  guest Guest @relation(fields: [guestId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("invitation_dispatches")
+}
+
+// -----------------------------------------------------------------------------
+// CLUSTER PERMISSION
+// -----------------------------------------------------------------------------
+
+model ClusterPermission {
+  clusterId    String
+  permissionId String
+
+  cluster    Cluster    @relation(fields: [clusterId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@id([clusterId, permissionId])
+  @@index([permissionId])
+  @@map("cluster_permissions")
+}
