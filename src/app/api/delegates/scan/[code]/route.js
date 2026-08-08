@@ -33,9 +33,15 @@ export async function GET(request, { params }) {
 
     const query = code.trim();
     const isNumeric = /^\d+$/.test(query);
+    const isExactCodeCandidate = /^[A-Za-z0-9]{4}$/.test(query);
 
-    const qrRecord = await prisma.qRCode.findUnique({
-      where: { code: query },
+    const qrRecord = await prisma.qRCode.findFirst({
+      where: {
+        code: {
+          equals: query,
+          mode: "insensitive",
+        },
+      },
       include: { guest: { include: includeRelations } },
     });
 
@@ -47,9 +53,9 @@ export async function GET(request, { params }) {
     const guestByPin = await prisma.guest.findFirst({
       where: {
         OR: [
-          { pin: query },
-          { pinFingerprint: query },
-          { phone: query },
+          { pin: { equals: query, mode: "insensitive" } },
+          { pinFingerprint: { equals: query, mode: "insensitive" } },
+          { phone: { equals: query, mode: "insensitive" } },
         ],
       },
       include: includeRelations,
@@ -58,6 +64,15 @@ export async function GET(request, { params }) {
     if (guestByPin) {
       const formatted = formatGuest(guestByPin);
       return Response.json({ delegate: formatted, matches: [formatted] });
+    }
+
+    if (isExactCodeCandidate) {
+      return Response.json(
+        {
+          error: `No delegate found for guest code or pin "${query}".`,
+        },
+        { status: 404 },
+      );
     }
 
     let OR = [];

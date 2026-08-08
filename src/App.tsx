@@ -4991,7 +4991,13 @@ function AdminDashboard({
   });
   const [rsvps, setRsvps] = useState<RSVPRecord[]>([]);
   const [tab, setTab] = useState<
-    "verify" | "guests" | "tables" | "clusters" | "rsvps" | "activities"
+    | "verify"
+    | "guests"
+    | "tables"
+    | "clusters"
+    | "rsvps"
+    | "checked_in"
+    | "activities"
   >("verify");
   const [activitiesSubTab, setActivitiesSubTab] = useState<
     "roles" | "permissions" | "cluster_permissions"
@@ -5347,6 +5353,13 @@ function AdminDashboard({
   const [rsvpStatusTab, setRsvpStatusTab] = useState<
     "PENDING" | "CARD_SENT" | "ATTENDING" | "NOT_ATTENDING"
   >("PENDING");
+
+  const checkedInGuests = useMemo(() => {
+    const source = dbGuests.length > 0 ? dbGuests : displayGuests;
+    return source.filter(
+      (g: any) => g.status === "CHECKED_IN" || g.checkedIn === true,
+    );
+  }, [dbGuests, displayGuests]);
 
   useEffect(() => {
     if (tab !== "rsvps") return;
@@ -5960,14 +5973,16 @@ function AdminDashboard({
       setVerifyCandidates([]);
       setSelectedDelegate(null);
       setVerifyHasSearched(false);
+      setVerifyMessage(null);
       return;
     }
 
-    const isNumeric = /^\d+$/.test(q);
-    if (isNumeric && q.length < 4) {
+    const isExactLookup = /^[A-Za-z0-9]{4}$/.test(q);
+    if (!isExactLookup) {
       setVerifyCandidates([]);
       setSelectedDelegate(null);
       setVerifyHasSearched(false);
+      setVerifyMessage(null);
       return;
     }
 
@@ -6651,6 +6666,7 @@ function AdminDashboard({
             ["tables", "Venue Tables", "assign_tables"],
             ["clusters", "Clusters", null],
             ["rsvps", "RSVPs", null],
+            ["checked_in", "Checked In", null],
             ["activities", "Admin Activities", "access_admin_activities"],
           ] as const
         )
@@ -6685,9 +6701,16 @@ function AdminDashboard({
               <div className="flex gap-2 items-center">
                 <input
                   type="text"
-                  placeholder="Type Name, Phone, or 4-Digit Code (e.g. 8983)..."
+                  placeholder="Type the full 4-character guest code or pin..."
                   value={verifySearch}
-                  onChange={(e) => setVerifySearch(e.target.value)}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setVerifySearch(v);
+                    setVerifyCandidates([]);
+                    setSelectedDelegate(null);
+                    setVerifyHasSearched(false);
+                    setVerifyMessage(null);
+                  }}
                   className="flex-1 bg-primary border border-sidebar-border px-3.5 py-2.5 text-xs text-primary-foreground placeholder:text-primary-foreground/30 focus:outline-none focus:border-accent"
                   style={{ fontFamily: "Lato,sans-serif" }}
                 />
@@ -6715,6 +6738,18 @@ function AdminDashboard({
                   <div id="reader" className="w-full min-h-[180px]" />
                 </div>
               )}
+
+              {verifySearch.trim().length > 0 &&
+                /^[A-Za-z0-9]{1,3}$/.test(verifySearch.trim()) &&
+                !verifySearchLoading && (
+                  <div
+                    className="p-2 px-3 text-[11px] border border-sidebar-border bg-primary/10 text-primary-foreground/70"
+                    style={{ fontFamily: "Lato,sans-serif" }}
+                  >
+                    Enter the full 4-character guest code or pin to lookup the
+                    guest.
+                  </div>
+                )}
 
               {verifyMessage && (
                 <div
@@ -7681,11 +7716,28 @@ function AdminDashboard({
                             2. Guests in Picked Cluster (1 Guest per Table
                             Invariant)
                           </p>
-                          <span className="text-[10px] text-accent font-mono font-bold">
-                            {assignmentSearch.trim()
-                              ? `Filter: "${assignmentSearch.trim()}"`
-                              : "Each guest can only be assigned to 1 table"}
-                          </span>
+
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="text"
+                              placeholder="Search guests by name, phone or #code"
+                              value={assignmentSearch}
+                              onChange={(e) =>
+                                setAssignmentSearch(e.target.value)
+                              }
+                              className="px-3 py-2 text-[13px] bg-primary border border-sidebar-border rounded focus:outline-none text-primary-foreground placeholder:text-primary-foreground/40"
+                              style={{
+                                fontFamily: "Lato,sans-serif",
+                                minWidth: 260,
+                              }}
+                            />
+
+                            <span className="text-[10px] text-accent font-mono font-bold">
+                              {assignmentSearch.trim()
+                                ? `Filter: "${assignmentSearch.trim()}"`
+                                : "Each guest can only be assigned to 1 table"}
+                            </span>
+                          </div>
                         </div>
 
                         <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
@@ -8264,6 +8316,101 @@ function AdminDashboard({
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === "checked_in" && (
+          <div className="space-y-6">
+            <div className="border-b border-sidebar-border pb-4">
+              <p
+                className="text-[10px] tracking-[0.3em] uppercase text-accent mb-1"
+                style={{ fontFamily: "Lato,sans-serif" }}
+              >
+                Attendance
+              </p>
+              <h2
+                className="text-lg text-primary-foreground font-serif"
+                style={{ fontFamily: "Playfair Display,serif" }}
+              >
+                Checked In Guests
+              </h2>
+              <p
+                className="text-[11px] text-primary-foreground/60 mt-2"
+                style={{ fontFamily: "Lato,sans-serif" }}
+              >
+                Showing all guests who have been checked in.
+              </p>
+            </div>
+            {checkedInGuests.length === 0 ? (
+              <div className="text-center py-20 border border-sidebar-border bg-primary/10 p-8">
+                <CheckCircle
+                  size={20}
+                  className="text-emerald-400 mx-auto mb-2"
+                />
+                <p
+                  className="text-primary-foreground/40 text-sm mt-4"
+                  style={{ fontFamily: "Lato,sans-serif" }}
+                >
+                  No guests have been checked in yet.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {checkedInGuests.map((g: any) => (
+                  <div
+                    key={g.id || g.pin || g.code}
+                    className="p-5 border border-emerald-500/30 bg-emerald-950/10 rounded-lg"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <div>
+                        <p
+                          className="text-base text-primary-foreground font-bold"
+                          style={{ fontFamily: "Playfair Display,serif" }}
+                        >
+                          {g.name}
+                        </p>
+                        <p
+                          className="text-[10px] text-primary-foreground/50 mt-1"
+                          style={{ fontFamily: "DM Mono,monospace" }}
+                        >
+                          Code #{g.code || g.pin || "N/A"}
+                        </p>
+                      </div>
+                      <span
+                        className="text-[9px] tracking-widest uppercase px-3 py-1 border font-bold bg-emerald-500/20 text-emerald-400 border-emerald-500/40"
+                        style={{ fontFamily: "Lato,sans-serif" }}
+                      >
+                        CHECKED IN
+                      </span>
+                    </div>
+                    <div className="mt-3 text-[10px] text-primary-foreground/60 space-y-1">
+                      <p style={{ fontFamily: "Lato,sans-serif" }}>
+                        Cluster:{" "}
+                        <span className="text-primary-foreground">
+                          {g.cluster || "Guests"}
+                        </span>
+                      </p>
+                      <p style={{ fontFamily: "Lato,sans-serif" }}>
+                        Table:{" "}
+                        <span className="text-primary-foreground">
+                          {typeof g.table === "object"
+                            ? g.table?.name
+                            : g.table || "Unassigned"}
+                        </span>
+                      </p>
+                      {g.checkedInAt && (
+                        <p style={{ fontFamily: "Lato,sans-serif" }}>
+                          Checked In At:{" "}
+                          <span className="text-primary-foreground">
+                            {new Date(g.checkedInAt).toLocaleString()}
+                          </span>
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
